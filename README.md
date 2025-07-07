@@ -13,7 +13,7 @@ This project implements and evaluates deep learning techniques for **image deblu
 - Modular structure for reproducible research
 
 ---
-
+<pre> ```bash
 ## Project Structure
 Image-Deblurring/
 ├── models/             # Model definitions
@@ -27,7 +27,7 @@ Image-Deblurring/
 ├── .gitignore          # Ignored files and folders
 ├── README.md           # Project documentation
 └── License             # License for use and distribution
-
+``` </pre>
 ## Installation
 Clone the repository and install dependencies using either pip or poetry.
 Option 1: Using pip
