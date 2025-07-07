@@ -16,21 +16,30 @@ This project implements and evaluates deep learning techniques for **image deblu
 
 ## Project Structure
 Image-Deblurring/
-│
-├── src/ # Core source code (models, utils, training)
-├── tests/ # Unit tests and evaluation scripts
-├── README.md # Project overview
-├── pyproject.toml # Project configuration and dependencies
-└── .gitignore # Ignored files
+├── models/             # Model definitions
+├── src/                # Core logic and helper functions
+├── tests/              # Unit and integration tests
+├── deblur.py           # Entry point to run deblurring
+├── evaluate.py         # PSNR / SSIM evaluation
+├── utils.py            # Utilities (I/O, preprocessing, metrics)
+├── requirements.txt    # Python dependencies (pip)
+├── pyproject.toml      # Project metadata (poetry)
+├── .gitignore          # Ignored files and folders
+├── README.md           # Project documentation
+└── License             # License for use and distribution
 
 ## Installation
-
-```bash
+Clone the repository and install dependencies using either pip or poetry.
+Option 1: Using pip
 git clone https://github.com/Tania526-sudo/Image-Deblurring.git
 cd Image-Deblurring
+
+# Create and activate virtual environment
 python -m venv venv
-source venv/bin/activate  # on Windows: venv\Scripts\activate
+source venv/bin/activate          # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 
-Or with poetry (if using pyproject.toml):
+Option 2: Using Poetry
 poetry install
