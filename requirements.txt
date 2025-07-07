@@ -1,5 +1,8 @@
-torch>=1.9.0
+torch>=2.0.0
 torchvision
 numpy
-pillow
+opencv-python
+matplotlib
 scikit-image
+tqdm
+pillow
