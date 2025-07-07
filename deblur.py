@@ -1,45 +1,98 @@
-import argparse
+import os
 import torch
+import torch.nn.functional as F
+import torchvision.transforms.functional as TF
 from PIL import Image
-import torchvision.transforms as T
-import numpy as np
+from glob import glob
+from natsort import natsorted
+import argparse
+from skimage import img_as_ubyte
+import cv2
+from collections import OrderedDict
 
-def load_model(model_name='mprnet', device='cpu'):
-    if model_name == 'mprnet':
-        model = torch.hub.load('swz30/MPRNet', 'MPRNet', pretrained=True)
+from MPRNet import MPRNet  
+
+
+def save_img(filepath, img):
+    cv2.imwrite(filepath, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+
+
+def load_checkpoint(model, weights):
+    checkpoint = torch.load(weights, map_location='cpu')
+    
+    if 'state_dict' in checkpoint:
+        state_dict = checkpoint['state_dict']
     else:
-        raise NotImplementedError(f"Model {model_name} not implemented")
+        state_dict = checkpoint
+
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        
+        if k.startswith('module.'):
+            name = k[7:]
+        else:
+            name = k
+        new_state_dict[name] = v
+
+    model.load_state_dict(new_state_dict)
+    print("Model weights loaded successfully.")
+
+
+def process_images(model, input_dir, result_dir, device):
+    os.makedirs(result_dir, exist_ok=True)
+
+    files = natsorted(glob(os.path.join(input_dir, '*.jpg'))
+                      + glob(os.path.join(input_dir, '*.JPG'))
+                      + glob(os.path.join(input_dir, '*.png'))
+                      + glob(os.path.join(input_dir, '*.PNG')))
+    if len(files) == 0:
+        raise Exception(f"No image files found in {input_dir}")
+
+    img_multiple_of = 8
+
     model.eval()
     model.to(device)
-    return model
-
-def preprocess(image):
-    transform = T.Compose([T.ToTensor()])
-    return transform(image).unsqueeze(0)
-
-def postprocess(tensor):
-    img = tensor.squeeze(0).cpu().clamp(0, 1).numpy()
-    img = np.transpose(img, (1, 2, 0)) * 255
-    return Image.fromarray(img.astype(np.uint8))
-
-def deblur_image(input_path, output_path, model_name='mprnet', device='cpu'):
-    model = load_model(model_name, device)
-    image = Image.open(input_path).convert('RGB')
-    input_tensor = preprocess(image).to(device)
 
     with torch.no_grad():
-        output = model(input_tensor)
+        for file_ in files:
+            img = Image.open(file_).convert('RGB')
+            input_ = TF.to_tensor(img).unsqueeze(0).to(device)
 
-    deblurred_image = postprocess(output)
-    deblurred_image.save(output_path)
-    print(f"Deblurred image saved to {output_path}")
+            h, w = input_.shape[2], input_.shape[3]
+            H = ((h + img_multiple_of) // img_multiple_of) * img_multiple_of
+            W = ((w + img_multiple_of) // img_multiple_of) * img_multiple_of
+            padh = H - h if h % img_multiple_of != 0 else 0
+            padw = W - w if w % img_multiple_of != 0 else 0
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Image deblurring script")
-    parser.add_argument('input', help="Path to blurred image")
-    parser.add_argument('output', help="Path to save deblurred image")
-    parser.add_argument('--model', default='mprnet', choices=['mprnet'])
-    parser.add_argument('--device', default='cpu')
+            input_ = F.pad(input_, (0, padw, 0, padh), 'reflect')
+
+            restored = model(input_)
+            restored = restored[0]
+            restored = torch.clamp(restored, 0, 1)
+
+            restored = restored[:, :h, :w]
+            restored = restored.permute(1, 2, 0).cpu().numpy()
+            restored = img_as_ubyte(restored)
+
+            filename = os.path.splitext(os.path.basename(file_))[0]
+            save_img(os.path.join(result_dir, f"{filename}_deblurred.png"), restored)
+            print(f"Processed and saved: {filename}_deblurred.png")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Image Deblurring with MPRNet')
+    parser.add_argument('--input_dir', required=True, type=str, help='Directory with blurred input images')
+    parser.add_argument('--result_dir', required=True, type=str, help='Directory to save deblurred images')
+    parser.add_argument('--weights', required=True, type=str, help='Path to pretrained model weights (.pth)')
     args = parser.parse_args()
 
-    deblur_image(args.input, args.output, args.model, args.device)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    model = MPRNet()
+    load_checkpoint(model, args.weights)
+
+    process_images(model, args.input_dir, args.result_dir, device)
+
+
+if __name__ == "__main__":
+    main()
