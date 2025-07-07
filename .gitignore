@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+
+# VSCode settings
+.vscode/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# Logs
+*.log
+
+# Docker
+*.env
+.dockerignore
+docker-compose.override.yml
+
+# Test output
+htmlcov/
+.tox/
+coverage.*
+.cache
+pytest_cache/
+.nox/
+
+# System
+.DS_Store
+Thumbs.db
