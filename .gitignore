@@ -39,3 +39,4 @@ pytest_cache/
 .DS_Store
 Thumbs.db
 blurred_images/
+*.pth
