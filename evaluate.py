@@ -1,52 +1,44 @@
 import os
+import argparse
 from glob import glob
-from PIL import Image
-import numpy as np
-import torch
+from natsort import natsorted
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
-from deblur import load_model, preprocess
+from skimage.io import imread
 
-def evaluate_model(blur_dir, sharp_dir, model_name='mprnet', device='cpu'):
-    model = load_model(model_name, device)
-    model.eval()
+def compute_metrics(gt_path, pred_path):
+    gt = imread(gt_path)
+    pred = imread(pred_path)
 
-    blur_images = sorted(glob(os.path.join(blur_dir, '*')))
-    sharp_images = sorted(glob(os.path.join(sharp_dir, '*')))
+    psnr_value = psnr(gt, pred, data_range=255)
+    ssim_value = ssim(gt, pred, multichannel=True, data_range=255)
 
-    psnr_list, ssim_list = [], []
+    return psnr_value, ssim_value
 
-    for blur_path, sharp_path in zip(blur_images, sharp_images):
-        blur_img = Image.open(blur_path).convert('RGB')
-        sharp_img = Image.open(sharp_path).convert('RGB')
-
-        input_tensor = preprocess(blur_img).to(device)
-        with torch.no_grad():
-            output_tensor = model(input_tensor)
-
-        output_img = output_tensor.squeeze(0).cpu().clamp(0,1).permute(1,2,0).numpy()
-        output_img = (output_img * 255).astype(np.uint8)
-
-        sharp_np = np.array(sharp_img)
-
-        current_psnr = psnr(sharp_np, output_img, data_range=255)
-        current_ssim = ssim(sharp_np, output_img, multichannel=True, data_range=255)
-
-        psnr_list.append(current_psnr)
-        ssim_list.append(current_ssim)
-
-        print(f"{os.path.basename(blur_path)}: PSNR={current_psnr:.2f}, SSIM={current_ssim:.4f}")
-
-    print(f"Average PSNR: {np.mean(psnr_list):.2f}")
-    print(f"Average SSIM: {np.mean(ssim_list):.4f}")
-
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description="Evaluate deblurring model on dataset")
-    parser.add_argument('--blur_dir', required=True, help="Directory with blurred images")
-    parser.add_argument('--sharp_dir', required=True, help="Directory with sharp images")
-    parser.add_argument('--model', default='mprnet', choices=['mprnet'])
-    parser.add_argument('--device', default='cpu')
+def main():
+    parser = argparse.ArgumentParser(description="Evaluate Deblurring Model")
+    parser.add_argument('--gt_dir', type=str, required=True, help="Ground truth images directory")
+    parser.add_argument('--pred_dir', type=str, required=True, help="Predicted images directory")
     args = parser.parse_args()
 
-    evaluate_model(args.blur_dir, args.sharp_dir, args.model, args.device)
+    gt_files = natsorted(glob(os.path.join(args.gt_dir, '*.*')))
+    pred_files = natsorted(glob(os.path.join(args.pred_dir, '*.*')))
+
+    if len(gt_files) != len(pred_files):
+        raise ValueError("Mismatch in number of images between GT and Predictions")
+
+    total_psnr = 0
+    total_ssim = 0
+    n = len(gt_files)
+
+    for gt_path, pred_path in zip(gt_files, pred_files):
+        p, s = compute_metrics(gt_path, pred_path)
+        total_psnr += p
+        total_ssim += s
+        print(f"{os.path.basename(gt_path)} - PSNR: {p:.2f}, SSIM: {s:.4f}")
+
+    print(f"\nAverage PSNR: {total_psnr/n:.2f}")
+    print(f"Average SSIM: {total_ssim/n:.4f}")
+
+if __name__ == '__main__':
+    main()

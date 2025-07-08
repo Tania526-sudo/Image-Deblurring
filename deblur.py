@@ -1,25 +1,22 @@
 import os
+import argparse
+from glob import glob
+from natsort import natsorted
+
 import torch
 import torch.nn.functional as F
 import torchvision.transforms.functional as TF
 from PIL import Image
-from glob import glob
-from natsort import natsorted
-import argparse
 from skimage import img_as_ubyte
 import cv2
 from collections import OrderedDict
-
-from MPRNet import MPRNet  
-
+from runpy import run_path
 
 def save_img(filepath, img):
     cv2.imwrite(filepath, cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
 
-
-def load_checkpoint(model, weights):
-    checkpoint = torch.load(weights, map_location='cpu')
-    
+def load_checkpoint(model, weights_path, device):
+    checkpoint = torch.load(weights_path, map_location=device)
     if 'state_dict' in checkpoint:
         state_dict = checkpoint['state_dict']
     else:
@@ -27,72 +24,74 @@ def load_checkpoint(model, weights):
 
     new_state_dict = OrderedDict()
     for k, v in state_dict.items():
-        
-        if k.startswith('module.'):
-            name = k[7:]
-        else:
-            name = k
+        name = k[7:] if k.startswith('module.') else k
         new_state_dict[name] = v
 
     model.load_state_dict(new_state_dict)
-    print("Model weights loaded successfully.")
+    print(f"Loaded model weights from {weights_path} on {device}")
 
-
-def process_images(model, input_dir, result_dir, device):
-    os.makedirs(result_dir, exist_ok=True)
-
-    files = natsorted(glob(os.path.join(input_dir, '*.jpg'))
-                      + glob(os.path.join(input_dir, '*.JPG'))
-                      + glob(os.path.join(input_dir, '*.png'))
-                      + glob(os.path.join(input_dir, '*.PNG')))
-    if len(files) == 0:
-        raise Exception(f"No image files found in {input_dir}")
-
-    img_multiple_of = 8
-
+def process_image(model, image_path, output_path, device, img_multiple_of=8):
     model.eval()
-    model.to(device)
-
+    
     with torch.no_grad():
-        for file_ in files:
-            img = Image.open(file_).convert('RGB')
-            input_ = TF.to_tensor(img).unsqueeze(0).to(device)
+        img = Image.open(image_path).convert('RGB')
+        input_tensor = TF.to_tensor(img).unsqueeze(0).to(device)
 
-            h, w = input_.shape[2], input_.shape[3]
-            H = ((h + img_multiple_of) // img_multiple_of) * img_multiple_of
-            W = ((w + img_multiple_of) // img_multiple_of) * img_multiple_of
-            padh = H - h if h % img_multiple_of != 0 else 0
-            padw = W - w if w % img_multiple_of != 0 else 0
+        h, w = input_tensor.shape[2], input_tensor.shape[3]
+        H = ((h + img_multiple_of) // img_multiple_of) * img_multiple_of
+        W = ((w + img_multiple_of) // img_multiple_of) * img_multiple_of
+        padh = H - h if h % img_multiple_of != 0 else 0
+        padw = W - w if w % img_multiple_of != 0 else 0
 
-            input_ = F.pad(input_, (0, padw, 0, padh), 'reflect')
+        input_tensor = F.pad(input_tensor, (0, padw, 0, padh), mode='reflect')
 
-            restored = model(input_)
-            restored = restored[0]
-            restored = torch.clamp(restored, 0, 1)
+        restored = model(input_tensor)
+        restored = torch.clamp(restored[0], 0, 1)
+        restored = restored[:, :h, :w]
+        restored = restored.squeeze(0).permute(1, 2, 0).cpu().numpy()  # Важливо: squeeze перед permute
+        restored_img = img_as_ubyte(restored)
 
-            restored = restored[:, :h, :w]
-            restored = restored.permute(1, 2, 0).cpu().numpy()
-            restored = img_as_ubyte(restored)
-
-            filename = os.path.splitext(os.path.basename(file_))[0]
-            save_img(os.path.join(result_dir, f"{filename}_deblurred.png"), restored)
-            print(f"Processed and saved: {filename}_deblurred.png")
-
+        save_img(output_path, restored_img)
+        print(f"Saved deblurred image: {output_path}")
 
 def main():
-    parser = argparse.ArgumentParser(description='Image Deblurring with MPRNet')
-    parser.add_argument('--input_dir', required=True, type=str, help='Directory with blurred input images')
-    parser.add_argument('--result_dir', required=True, type=str, help='Directory to save deblurred images')
-    parser.add_argument('--weights', required=True, type=str, help='Path to pretrained model weights (.pth)')
+    parser = argparse.ArgumentParser(description="Image Deblurring with MPRNet")
+    parser.add_argument('--input', required=True, type=str,
+                        help="Path to blurred image or directory with images")
+    parser.add_argument('--output_dir', required=True, type=str,
+                        help="Directory to save deblurred images")
+    parser.add_argument('--weights', required=True, type=str,
+                        help="Path to pretrained weights (.pth) file")
+
     args = parser.parse_args()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print(f"Using device: {device}")
 
-    model = MPRNet()
-    load_checkpoint(model, args.weights)
+    # Завантажуємо модель з MPRNet.py, який має бути у тому ж каталозі
+    load_file = run_path("MPRNet.py")
+    model = load_file['MPRNet']()
+    model.to(device)
 
-    process_images(model, args.input_dir, args.result_dir, device)
+    load_checkpoint(model, args.weights, device)
 
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    if os.path.isdir(args.input):
+        files = natsorted(glob(os.path.join(args.input, '*.jpg'))
+                          + glob(os.path.join(args.input, '*.png'))
+                          + glob(os.path.join(args.input, '*.jpeg')))
+        if not files:
+            raise FileNotFoundError(f"No images found in {args.input}")
+        for file_path in files:
+            filename = os.path.splitext(os.path.basename(file_path))[0]
+            output_path = os.path.join(args.output_dir, f"{filename}_deblurred.png")
+            process_image(model, file_path, output_path, device)
+    else:
+        filename = os.path.splitext(os.path.basename(args.input))[0]
+        output_path = os.path.join(args.output_dir, f"{filename}_deblurred.png")
+        process_image(model, args.input, output_path, device)
 
 if __name__ == "__main__":
     main()
+
