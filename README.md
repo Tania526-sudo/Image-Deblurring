@@ -16,17 +16,33 @@ This project implements and evaluates deep learning techniques for **image deblu
 <pre> ```bash
 ## Project Structure
 Image-Deblurring/
-├── models/             # Model definitions
-├── src/                # Core logic and helper functions
-├── tests/              # Unit and integration tests
-├── deblur.py           # Entry point to run deblurring
-├── evaluate.py         # PSNR / SSIM evaluation
-├── utils.py            # Utilities (I/O, preprocessing, metrics)
-├── requirements.txt    # Python dependencies (pip)
-├── pyproject.toml      # Project metadata (poetry)
-├── .gitignore          # Ignored files and folders
-├── README.md           # Project documentation
-└── License             # License for use and distribution
+├── notebooks/                 # Jupyter notebooks for inference and evaluation
+│   ├── Deblur_Inference.ipynb
+│   └── Deblur_Evaluation.ipynb
+├── OpenVINO/                  # Scripts for converting the model to OpenVINO and running inference
+│   ├── convert_to_openvino.py
+│   ├── openvino_inference.py
+│   └── model_deblurring.onnx  # Converted model in ONNX format for OpenVINO
+├── pretrained_models/         # Pre-trained model weights
+│   └── model_deblurring.pth
+├── results/                   # Saved model results
+├── src/                      
+├── tests/                    
+├── utils/                    # Auxiliary utilities
+│   ├── __init__.py
+│   ├── dataset_utils.py       # Functions for working with datasets
+│   ├── dir_utils.py           # Functions for working with directories
+│   ├── image_utils.py         # Image processing and conversion
+│   └── model_utils.py         # Auxiliary functions for models
+├── deblur.py                 # Main script to start de-blurring
+├── evaluate.py               # Script for evaluating the quality of results (PSNR, SSIM)
+├── get-pip.py                # Script to install dependencies (optional)
+├── logger.py                 # Logging processes and results
+├── MPRNet.py                 # Implementation of the MPRNet model architecture
+├── requirements.txt          # Python dependencies
+├── pyproject.toml            # Project metadata for Poetry
+├── README.md                 # Project documentation
+└── License                   # License
 ``` </pre>
 ## Installation
 Clone the repository and install dependencies using either pip or poetry.
