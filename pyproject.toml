@@ -17,3 +17,28 @@ packages = [{include = "image_deblurring", from = "src"}]
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+# Core
+numpy = "^1.24.0"
+opencv-python = "^4.7.0"
+matplotlib = "^3.7.1"
+tqdm = "^4.65.0"
+
+# Deep learning
+torch = "^2.0.0"
+torchvision = "^0.15.1"
+
+# OpenVINO (Intel Inference Engine)
+openvino = "^2023.1.0"
+
+# Optional: Notebook and visualization
+notebook = "^7.0.0"
+jupyterlab = "^4.0.0"
+seaborn = "^0.12.2"
+
+# Logging / utils
+loguru = "^0.7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
